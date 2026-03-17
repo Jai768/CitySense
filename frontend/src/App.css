@@ -1,18 +1,18 @@
 body {
   margin: 0;
-  background-color: #0f1115;
+  background-color: #0f1115; /* Dark background */
   color: #e2e8f0;
   font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   overflow: hidden;
 }
 
-.editor-layout {
+.app-container {
   display: flex;
   height: 100vh;
   width: 100vw;
 }
 
-/* --- Sleek Sidebar --- */
+/* Sidebar Styling */
 .sidebar {
   width: 300px;
   background: rgba(26, 32, 44, 0.95);
@@ -21,7 +21,7 @@ body {
   padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   box-shadow: 4px 0 15px rgba(0, 0, 0, 0.4);
   z-index: 50;
 }
@@ -32,9 +32,11 @@ body {
   color: #38bdf8;
   font-weight: 700;
   letter-spacing: -0.5px;
+  border-bottom: 2px solid #334155;
+  padding-bottom: 12px;
+  margin-bottom: 8px;
 }
 
-/* Modern Buttons */
 .tool-btn {
   background-color: #1e293b;
   color: #cbd5e1;
@@ -48,6 +50,7 @@ body {
   text-align: left;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
 }
 
@@ -62,7 +65,9 @@ body {
   background-color: #059669;
   border-color: #10b981;
   color: white;
-  justify-content: center;
+  margin-top: auto;
+  font-size: 16px;
+  padding: 16px;
 }
 .tool-btn.start:hover { background-color: #047857; }
 
@@ -70,159 +75,225 @@ body {
   background-color: #e11d48;
   border-color: #f43f5e;
   color: white;
-  justify-content: center;
+  margin-top: auto;
+  font-size: 16px;
+  padding: 16px;
 }
 .tool-btn.stop:hover { background-color: #be123c; }
 
-/* Capacity Editor Panel */
-.edit-panel {
-  background-color: #0f172a;
-  border: 1px dashed #38bdf8;
-  padding: 12px;
-  border-radius: 8px;
-  margin-top: 8px;
-}
-.edit-panel label { font-size: 11px; color: #94a3b8; font-weight: 600; letter-spacing: 0.5px;}
-.edit-panel input {
-  width: 100%;
-  padding: 10px;
-  margin-top: 6px;
-  background-color: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  color: #38bdf8;
-  font-weight: bold;
-  box-sizing: border-box;
-  outline: none;
-}
-.edit-panel input:focus { border-color: #38bdf8; }
-
-.stats-panel {
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid #334155;
-  font-size: 13px;
-  color: #94a3b8;
-  line-height: 1.8;
-}
-.stats-panel strong { color: #e2e8f0; }
-
-/* --- Blueprint Canvas --- */
+/* Intersection Canvas */
 .canvas-container {
   flex-grow: 1;
   position: relative;
-  background-color: #0b0f19;
-  /* Dotted grid background for that engineering feel */
-  background-image: radial-gradient(#1e293b 1px, transparent 1px);
+  background-color: #1e293b; /* Grass/surroundings dark theme */
+  background-image: radial-gradient(#334155 1px, transparent 1px);
   background-size: 20px 20px;
-  overflow: hidden;
-}
-
-/* SVG Roads */
-.road-svg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-}
-
-/* Asphalt Base */
-.road-bg {
-  stroke: #1e293b;
-  stroke-width: 22;
-  transition: stroke 0.2s;
-}
-.road-bg.selected { stroke: #0ea5e9; }
-
-/* Dashed Center Line */
-.road-dash {
-  stroke: #475569;
-  stroke-width: 2;
-  stroke-dasharray: 8 6;
-  fill: none;
-}
-
-/* Capacity Badge */
-.capacity-badge {
-  fill: #1e293b;
-  stroke: #475569;
-  stroke-width: 1.5;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.capacity-badge:hover { fill: #334155; stroke: #38bdf8; transform: scale(1.1); }
-.capacity-badge.selected { fill: #0284c7; stroke: #38bdf8; }
-.capacity-text {
-  fill: #f8fafc;
-  font-size: 11px;
-  font-weight: 700;
-  pointer-events: none;
-  text-anchor: middle;
-  dominant-baseline: central;
-}
-
-/* --- Intersections --- */
-.node {
-  position: absolute;
-  width: 44px;
-  height: 44px;
-  background-color: #1e293b;
-  border: 2px solid #475569;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 10;
-  cursor: pointer;
-  user-select: none;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.3);
 }
-.node:hover { transform: translate(-50%, -50%) scale(1.08); border-color: #64748b;}
-.node.selected { border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.2); }
-.node-queue { font-weight: 800; font-size: 16px; color: #f8fafc; }
 
-/* --- Vertical Traffic Lights --- */
-.traffic-light-box {
+.intersection-wrapper {
+  position: relative;
+  width: 600px;
+  height: 600px;
+  overflow: hidden; /* Hide cars extending past the road edge */
+}
+
+/* Roads */
+.road {
   position: absolute;
-  top: 50%;
-  left: -24px; /* Tucked to the left side of the intersection */
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column; /* Vertical alignment */
-  gap: 3px;
-  background-color: #0f172a;
-  padding: 4px;
-  border-radius: 6px;
-  border: 1px solid #334155;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.5);
-  z-index: 15;
+  background-color: #475569;
 }
 
-.bulb {
-  width: 8px;
-  height: 8px;
+.road.vertical {
+  width: 140px;
+  height: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 2px dashed #94a3b8;
+  border-right: 2px dashed #94a3b8;
+  z-index: 1;
+}
+
+.road.horizontal {
+  width: 100%;
+  height: 140px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 2px dashed #94a3b8;
+  border-bottom: 2px dashed #94a3b8;
+  z-index: 1;
+}
+
+.center-square {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  background-color: #475569;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+/* Road Dividers */
+.road-divider {
+  position: absolute;
+  background-color: transparent;
+  z-index: 3;
+}
+.road-divider.vertical {
+  width: 2px;
+  height: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-image: linear-gradient(to bottom, transparent 50%, #eab308 50%);
+  background-size: 2px 20px;
+}
+.road-divider.horizontal {
+  width: 100%;
+  height: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-image: linear-gradient(to right, transparent 50%, #eab308 50%);
+  background-size: 20px 2px;
+}
+
+/* Direction Containers */
+.direction-container {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  z-index: 10;
+}
+
+.direction-container.north {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.direction-container.south {
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.direction-container.east {
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: row-reverse; /* Horizontal layout for East/West */
+}
+
+.direction-container.west {
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  flex-direction: row;
+}
+
+/* Input Fields */
+.vehicle-input {
+  width: 60px;
+  text-align: center;
+  padding: 8px;
+  font-size: 20px;
+  font-weight: bold;
+  background-color: #0f172a;
+  border: 2px solid #38bdf8;
+  color: #38bdf8;
+  border-radius: 8px;
+  outline: none;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.vehicle-input:focus {
+  border-color: #22d3ee;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+}
+
+.car-icon {
+  font-size: 24px;
+}
+
+/* Traffic Lights */
+.traffic-light {
+  display: flex;
+  background-color: #0f172a;
+  padding: 8px;
+  border-radius: 12px;
+  border: 2px solid #334155;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+  gap: 8px;
+}
+
+.direction-container.north .traffic-light, 
+.direction-container.south .traffic-light {
+  flex-direction: row;
+}
+
+.direction-container.east .traffic-light, 
+.direction-container.west .traffic-light {
+  flex-direction: column;
+}
+
+.light-bulb {
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background-color: #1e293b;
-  transition: all 0.2s ease;
+  border: 2px solid #0f172a;
+  transition: all 0.3s ease;
 }
 
-.bulb.red.active { background-color: #ef4444; box-shadow: 0 0 8px #ef4444, inset 0 0 2px #fff; }
-.bulb.yellow.active { background-color: #eab308; box-shadow: 0 0 8px #eab308, inset 0 0 2px #fff; }
-.bulb.green.active { background-color: #22c55e; box-shadow: 0 0 8px #22c55e, inset 0 0 2px #fff; }
+.light-bulb.red.active { background-color: #ef4444; box-shadow: 0 0 12px #ef4444, inset 0 0 4px #fff; border-color: #ef4444; }
+.light-bulb.yellow.active { background-color: #eab308; box-shadow: 0 0 12px #eab308, inset 0 0 4px #fff; border-color: #eab308; }
+.light-bulb.green.active { background-color: #22c55e; box-shadow: 0 0 12px #22c55e, inset 0 0 4px #fff; border-color: #22c55e; }
 
-/* --- Vehicles --- */
-.vehicle {
+.direction-label {
   position: absolute;
-  width: 8px;
-  height: 8px;
-  background-color: #38bdf8;
-  border-radius: 3px; /* Slightly squared to look like tiny cars */
-  transform: translate(-50%, -50%);
-  z-index: 5;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.8);
-  pointer-events: none;
+  font-size: 24px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  z-index: 10;
 }
+.label-n { top: 20px; left: 20px; }
+.label-s { bottom: 20px; right: 20px; }
+.label-e { top: 20px; right: 20px; }
+.label-w { bottom: 20px; left: 20px; }
+
+
+/* Animated Cars */
+.animated-car {
+  position: absolute;
+  width: 24px;
+  height: 40px;
+  border-radius: 6px;
+  transform: translate(-50%, -50%);
+  z-index: 15;
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+}
+
+.animated-car.north { transform: translate(-50%, -50%) rotate(180deg); }
+.animated-car.south { transform: translate(-50%, -50%) rotate(0deg); }
+.animated-car.east { transform: translate(-50%, -50%) rotate(90deg); }
+.animated-car.west { transform: translate(-50%, -50%) rotate(270deg); }
+
+/* Headlights for the cars */
+.headlight {
+  position: absolute;
+  width: 6px;
+  height: 4px;
+  background-color: #fca5a5;  /* slight red glow at back */
+  top: 0;
+  border-radius: 2px 2px 0 0;
+}
+.headlight.fl { left: 2px; }
+.headlight.fr { right: 2px; }
+

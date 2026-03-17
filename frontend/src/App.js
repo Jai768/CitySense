@@ -1,123 +1,61 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 
+const DIRECTIONS = ['north', 'south', 'east', 'west'];
+
 export default function App() {
-  const [mode, setMode] = useState('ADD_NODE');
-  const [isTwoWay, setIsTwoWay] = useState(true);
-
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
-  const [vehicles, setVehicles] = useState([]);
-
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [selectedEdgeId, setSelectedEdgeId] = useState(null);
-
+  const [modelType, setModelType] = useState('optimal'); // baseline | optimal
   const [isSimulating, setIsSimulating] = useState(false);
 
-  // 🔥 NEW: Model toggle
-  const [modelType, setModelType] = useState("optimal"); // baseline | optimal
+  // States
+  const [queues, setQueues] = useState({ north: 0, south: 0, east: 0, west: 0 });
+  const [lights, setLights] = useState({ north: 'red', south: 'red', east: 'red', west: 'red' });
+  
+  // Animation State
+  const [cars, setCars] = useState([]);
 
-  const nodesRef = useRef(nodes);
-  const edgesRef = useRef(edges);
-  const vehiclesRef = useRef(vehicles);
+  // Refs for loop
   const simActiveRef = useRef(isSimulating);
+  const queuesRef = useRef(queues);
+  const lightsRef = useRef(lights);
+  const carsRef = useRef(cars);
 
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
-  useEffect(() => { edgesRef.current = edges; }, [edges]);
-  useEffect(() => { vehiclesRef.current = vehicles; }, [vehicles]);
   useEffect(() => { simActiveRef.current = isSimulating; }, [isSimulating]);
+  useEffect(() => { queuesRef.current = queues; }, [queues]);
+  useEffect(() => { lightsRef.current = lights; }, [lights]);
+  useEffect(() => { carsRef.current = cars; }, [cars]);
 
-  const handleCanvasClick = (e) => {
-    if (isSimulating || mode !== 'ADD_NODE') return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setNodes([...nodes, { id: Date.now().toString(), idx: nodes.length, x, y, queue: 0, light: 'red' }]);
+  const handleQueueChange = (dir, val) => {
+    const num = Math.max(0, parseInt(val) || 0);
+    setQueues({ ...queues, [dir]: num });
   };
 
-  const handleNodeClick = (e, nodeId) => {
-    e.stopPropagation();
-    if (isSimulating) return;
-
-    if (mode === 'ADD_ROAD') {
-      if (!selectedNodeId) setSelectedNodeId(nodeId);
-      else {
-        if (selectedNodeId !== nodeId) {
-          let newEdges = [...edges];
-
-          if (!newEdges.some(edge => edge.source === selectedNodeId && edge.target === nodeId)) {
-            newEdges.push({ id: Date.now().toString(), source: selectedNodeId, target: nodeId, capacity: 5 });
-          }
-
-          if (isTwoWay && !newEdges.some(edge => edge.source === nodeId && edge.target === selectedNodeId)) {
-            newEdges.push({ id: (Date.now() + 1).toString(), source: nodeId, target: selectedNodeId, capacity: 5 });
-          }
-
-          setEdges(newEdges);
-        }
-        setSelectedNodeId(null);
-      }
-    } else if (mode === 'ADD_VEHICLES') {
-      setNodes(nodes.map(n => n.id === nodeId ? { ...n, queue: n.queue + 10 } : n));
-    }
-  };
-
-  const handleEdgeClick = (e, edgeId) => {
-    e.stopPropagation();
-    if (isSimulating) return;
-    if (mode === 'EDIT_ROAD') setSelectedEdgeId(edgeId);
-  };
-
-  const updateEdgeCapacity = (newCapacity) => {
-    const cap = Math.max(1, parseInt(newCapacity) || 1);
-    setEdges(edges.map(e => e.id === selectedEdgeId ? { ...e, capacity: cap } : e));
-  };
-
-  const resetEditor = () => {
-    setIsSimulating(false);
-    setNodes([]); setEdges([]); setVehicles([]);
-    setSelectedNodeId(null); setSelectedEdgeId(null);
-  };
-
-  // ---------------- AI LOOP ----------------
+  // ---------------- AI LOOP (Traffic Lights) ----------------
   useEffect(() => {
     if (!isSimulating) return;
 
     let aiTimeoutId;
-    let animationId;
-    let lastTime = performance.now();
 
     const loopAI = async () => {
-      if (!simActiveRef.current || nodesRef.current.length === 0) return;
+      if (!simActiveRef.current) return;
 
-      const currentNodes = [...nodesRef.current];
-      const edgeSources = [];
-      const edgeTargets = [];
-      const edgeCapacities = [];
+      const q = queuesRef.current;
+      const queueList = [q.north, q.south, q.east, q.west, 0];
+      const edgeSources = [0, 1, 2, 3];
+      const edgeTargets = [4, 4, 4, 4];
+      const edgeCapacities = [10, 10, 10, 10]; 
 
-      edgesRef.current.forEach(e => {
-        const srcIdx = currentNodes.find(n => n.id === e.source).idx;
-        const tgtIdx = currentNodes.find(n => n.id === e.target).idx;
-        edgeSources.push(srcIdx);
-        edgeTargets.push(tgtIdx);
-        edgeCapacities.push(e.capacity);
-      });
-
-      const currentGreens = currentNodes.filter(n => n.light === 'green').map(n => n.idx);
+      const currentGreens = DIRECTIONS.map((dir, i) => lightsRef.current[dir] === 'green' ? i : -1).filter(i => i !== -1);
 
       const payload = {
-        queues: currentNodes.map(n => n.queue),
+        queues: queueList,
         edges: [edgeSources, edgeTargets],
         capacities: edgeCapacities,
         current_greens: currentGreens
       };
 
       try {
-        // 🔥 SWITCH ENDPOINT BASED ON MODEL
-        const endpoint = modelType === "baseline"
-          ? "predict_baseline"
-          : "predict_optimal";
-
+        const endpoint = modelType === "baseline" ? "predict_baseline" : "predict_optimal";
         const response = await fetch(`http://localhost:5000/${endpoint}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -125,102 +63,127 @@ export default function App() {
         });
 
         const data = await response.json();
-        const newActive = data.active_nodes || [];
+        const activeNodeIndices = data.active_nodes || [];
+        const activeDirections = activeNodeIndices.map(idx => DIRECTIONS[idx]);
 
         let needsYellow = false;
-        let updatedNodes = [...nodesRef.current];
+        let updatedLights = { ...lightsRef.current };
 
-        for (let i = 0; i < updatedNodes.length; i++) {
-          if (updatedNodes[i].light === 'green' && !newActive.includes(updatedNodes[i].idx)) {
-            updatedNodes[i].light = 'yellow';
+        DIRECTIONS.forEach(dir => {
+          if (updatedLights[dir] === 'green' && !activeDirections.includes(dir)) {
+            updatedLights[dir] = 'yellow';
             needsYellow = true;
           }
-        }
+        });
 
         if (needsYellow) {
-          setNodes([...updatedNodes]);
+          setLights({ ...updatedLights });
           await new Promise(r => setTimeout(r, 1500));
           if (!simActiveRef.current) return;
-          updatedNodes = [...nodesRef.current];
+          updatedLights = { ...lightsRef.current };
         }
 
-        setNodes(updatedNodes.map(n => ({
-          ...n,
-          light: newActive.includes(n.idx) ? 'green' : 'red'
-        })));
+        DIRECTIONS.forEach(dir => {
+          updatedLights[dir] = activeDirections.includes(dir) ? 'green' : 'red';
+        });
+
+        setLights(updatedLights);
 
       } catch (err) {
         console.error("Backend error.", err);
       }
 
       if (simActiveRef.current) {
-        aiTimeoutId = setTimeout(loopAI, 1000);
+        aiTimeoutId = setTimeout(loopAI, 1000); // Poll backend every 1 second
       }
     };
 
     loopAI();
 
-    // ---------------- PHYSICS ----------------
+    return () => {
+      clearTimeout(aiTimeoutId);
+    };
+  }, [isSimulating, modelType]);
+
+  // ---------------- PHYSICS LOOP (Cars) ----------------
+  useEffect(() => {
+    if (!isSimulating) {
+      setCars([]); 
+      return;
+    }
+
+    let animationId;
+    let lastTime = performance.now();
+    let spawnTimer = 0;
+
     const updatePhysics = (time) => {
       if (!simActiveRef.current) return;
 
       const deltaTime = (time - lastTime) / 1000;
       lastTime = time;
-      const speed = 100;
+      spawnTimer += deltaTime;
 
-      let updatedNodes = [...nodesRef.current];
-      let newVehicles = [...vehiclesRef.current];
-      let nodesChanged = false;
+      let currentCars = [...carsRef.current];
+      let currentQueues = { ...queuesRef.current };
+      let queuesChanged = false;
 
-      updatedNodes.forEach((node, idx) => {
-        if (node.light === 'green' && node.queue > 0) {
-          const outgoingEdges = edgesRef.current.filter(e => e.source === node.id);
+      // 1. SPAWN CARS
+      // Every ~0.6 seconds, spawn a car for any direction that is green and has queue > 0
+      if (spawnTimer >= 0.6) {
+        spawnTimer = 0;
+        
+        DIRECTIONS.forEach(dir => {
+          if (lightsRef.current[dir] === 'green' && currentQueues[dir] > 0) {
+            
+            // Starting positions based on a 600x600 wrapper
+            // Center is roughly 300, 300. Roads are 140px wide. 
+            // We want cars driving on the right side of their road.
+            let startX, startY;
+            const carId = Math.random().toString(36).substring(7);
 
-          outgoingEdges.forEach(edge => {
-            if (updatedNodes[idx].queue > 0) {
-              const spawnChance = edge.capacity * 0.03;
-
-              if (Math.random() < spawnChance) {
-                const targetNode = updatedNodes.find(n => n.id === edge.target);
-
-                if (targetNode) {
-                  newVehicles.push({
-                    id: Math.random().toString(),
-                    x: node.x, y: node.y,
-                    targetX: targetNode.x, targetY: targetNode.y,
-                    targetId: targetNode.id
-                  });
-
-                  updatedNodes[idx].queue -= 1;
-                  nodesChanged = true;
-                }
-              }
+            if (dir === 'north') {
+               startX = 300 - 35; // Left lane going South
+               startY = 0;
+            } else if (dir === 'south') {
+               startX = 300 + 35; // Right lane going North
+               startY = 600;
+            } else if (dir === 'east') {
+               startX = 600; 
+               startY = 300 - 35; // Top lane going West
+            } else if (dir === 'west') {
+               startX = 0;
+               startY = 300 + 35; // Bottom lane going East
             }
-          });
-        }
-      });
 
-      newVehicles = newVehicles.filter(v => {
-        const dx = v.targetX - v.x;
-        const dy = v.targetY - v.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+            currentCars.push({
+              id: carId,
+              direction: dir,
+              x: startX,
+              y: startY,
+              color: `hsl(${Math.random() * 360}, 80%, 60%)` // Random car colors!
+            });
 
-        if (distance < 5) {
-          const targetIdx = updatedNodes.findIndex(n => n.id === v.targetId);
-          if (targetIdx !== -1) {
-            updatedNodes[targetIdx].queue += 1;
-            nodesChanged = true;
+            currentQueues[dir] -= 1;
+            queuesChanged = true;
           }
-          return false;
-        }
+        });
+      }
 
-        v.x += (dx / distance) * speed * deltaTime;
-        v.y += (dy / distance) * speed * deltaTime;
-        return true;
+      // 2. MOVE CARS
+      const speed = 250; // pixels per second
+
+      currentCars = currentCars.filter(car => {
+        if (car.direction === 'north') car.y += speed * deltaTime;     // Moving Down
+        if (car.direction === 'south') car.y -= speed * deltaTime;     // Moving Up
+        if (car.direction === 'east') car.x -= speed * deltaTime;      // Moving Left
+        if (car.direction === 'west') car.x += speed * deltaTime;      // Moving Right
+
+        // Keep car if it hasn't exited the 600x600 wrapper bounds
+        return car.x > -50 && car.x < 650 && car.y > -50 && car.y < 650;
       });
 
-      if (nodesChanged) setNodes(updatedNodes);
-      setVehicles(newVehicles);
+      setCars(currentCars);
+      if (queuesChanged) setQueues(currentQueues);
 
       animationId = requestAnimationFrame(updatePhysics);
     };
@@ -228,112 +191,118 @@ export default function App() {
     animationId = requestAnimationFrame(updatePhysics);
 
     return () => {
-      clearTimeout(aiTimeoutId);
       cancelAnimationFrame(animationId);
     };
+  }, [isSimulating]);
 
-  }, [isSimulating, modelType]);
 
-  const renderEdges = edges.map(edge => {
-    const n1 = nodes.find(n => n.id === edge.source);
-    const n2 = nodes.find(n => n.id === edge.target);
-    if (!n1 || !n2) return null;
-
-    const dx = n2.x - n1.x;
-    const dy = n2.y - n1.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    const nx = -dy / len;
-    const ny = dx / len;
-
-    const offset = 12;
-    const x1 = n1.x + nx * offset;
-    const y1 = n1.y + ny * offset;
-    const x2 = n2.x + nx * offset;
-    const y2 = n2.y + ny * offset;
-
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
-
-    const isSelected = selectedEdgeId === edge.id;
-
-    return (
-      <g key={edge.id}>
-        <line className={`road-bg ${isSelected ? 'selected' : ''}`} x1={x1} y1={y1} x2={x2} y2={y2} />
-        <line className="road-dash" x1={x1} y1={y1} x2={x2} y2={y2} markerEnd="url(#chevron)" />
-        <g onClick={(e) => handleEdgeClick(e, edge.id)}>
-          <circle className={`capacity-badge ${isSelected ? 'selected' : ''}`} cx={midX} cy={midY} r="12" />
-          <text className="capacity-text" x={midX} y={midY}>{edge.capacity}</text>
-        </g>
-      </g>
-    );
-  });
+  const renderTrafficLight = (dir) => (
+    <div className="traffic-light">
+      <div className={`light-bulb red ${lights[dir] === 'red' ? 'active' : ''}`}></div>
+      <div className={`light-bulb yellow ${lights[dir] === 'yellow' ? 'active' : ''}`}></div>
+      <div className={`light-bulb green ${lights[dir] === 'green' ? 'active' : ''}`}></div>
+    </div>
+  );
 
   return (
-    <div className="editor-layout">
+    <div className="app-container">
       <div className="sidebar">
-        <h2>City Grid Builder</h2>
+        <h2>Traffic Engine</h2>
+        <p style={{ color: '#94a3b8', fontSize: '13px', lineHeight: '1.5' }}>
+          Enter the number of waiting vehicles on each road. The AI will dynamically adjust the traffic lights.
+        </p>
 
-        {/* 🔥 MODEL TOGGLE */}
-        <button className={`tool-btn ${modelType === 'baseline' ? 'active' : ''}`} onClick={() => setModelType("baseline")}>
-          🟥 Baseline
-        </button>
-        <button className={`tool-btn ${modelType === 'optimal' ? 'active' : ''}`} onClick={() => setModelType("optimal")}>
-          🟩 Optimal AI
-        </button>
-
-        <button className={`tool-btn ${mode === 'ADD_NODE' ? 'active' : ''}`} onClick={() => setMode('ADD_NODE')} disabled={isSimulating}>
-          📍 Add Intersections
-        </button>
-
-        <button className={`tool-btn ${mode === 'ADD_ROAD' ? 'active' : ''}`} onClick={() => setMode('ADD_ROAD')} disabled={isSimulating}>
-          🛣️ Connect Roads
-        </button>
-
-        <button className={`tool-btn ${mode === 'EDIT_ROAD' ? 'active' : ''}`} onClick={() => setMode('EDIT_ROAD')} disabled={isSimulating}>
-          ⚙️ Edit Capacity
-        </button>
-
-        <button className={`tool-btn ${mode === 'ADD_VEHICLES' ? 'active' : ''}`} onClick={() => setMode('ADD_VEHICLES')} disabled={isSimulating}>
-          🚗 Add Traffic
-        </button>
+        <div style={{ marginTop: '20px' }}>
+          <h3 style={{ color: '#e2e8f0', fontSize: '14px', marginBottom: '10px' }}>AI Model</h3>
+          <button className={`tool-btn ${modelType === 'baseline' ? 'active' : ''}`} onClick={() => setModelType("baseline")}>
+            🟥 Baseline Model (Max Queue)
+          </button>
+          <button className={`tool-btn ${modelType === 'optimal' ? 'active' : ''}`} onClick={() => setModelType("optimal")}>
+            🟩 Optimal Model (Density)
+          </button>
+        </div>
 
         {!isSimulating ? (
           <button className="tool-btn start" onClick={() => setIsSimulating(true)}>
-            ▶ START
+            ▶ START SIMULATION
           </button>
         ) : (
           <button className="tool-btn stop" onClick={() => setIsSimulating(false)}>
-            ⏸ STOP
+            ⏸ STOP SIMULATION
           </button>
         )}
-
-        <button className="tool-btn" onClick={resetEditor}>
-          Clear
-        </button>
       </div>
 
-      <div className="canvas-container" onClick={handleCanvasClick}>
-        <svg className="road-svg">
-          {renderEdges}
-        </svg>
+      <div className="canvas-container">
+        <span className="direction-label label-n">NORTH</span>
+        <span className="direction-label label-s">SOUTH</span>
+        <span className="direction-label label-e">EAST</span>
+        <span className="direction-label label-w">WEST</span>
 
-        {nodes.map(node => (
-          <div key={node.id} className="node" style={{
-            left: node.x,
-            top: node.y,
-            borderColor: isSimulating
-              ? (node.light === 'green' ? '#22c55e' : node.light === 'yellow' ? '#eab308' : '#ef4444')
-              : '#475569'
-          }}
-            onClick={(e) => handleNodeClick(e, node.id)}
-          >
-            <span className="node-queue">{node.queue}</span>
+        <div className="intersection-wrapper">
+          {/* Base Roads */}
+          <div className="road vertical"></div>
+          <div className="road horizontal"></div>
+          <div className="center-square"></div>
+
+          {/* Road markings */}
+          <div className="road-divider vertical"></div>
+          <div className="road-divider horizontal"></div>
+
+          {/* North */}
+          <div className="direction-container north">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="car-icon">🚗</span>
+              <input type="number" className="vehicle-input" value={queues.north} onChange={(e) => handleQueueChange('north', e.target.value)} />
+            </div>
+            {renderTrafficLight('north')}
           </div>
-        ))}
 
-        {vehicles.map(v => (
-          <div key={v.id} className="vehicle" style={{ left: v.x, top: v.y }} />
-        ))}
+          {/* South */}
+          <div className="direction-container south">
+            {renderTrafficLight('south')}
+             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="car-icon">🚗</span>
+              <input type="number" className="vehicle-input" value={queues.south} onChange={(e) => handleQueueChange('south', e.target.value)} />
+            </div>
+          </div>
+
+          {/* East */}
+          <div className="direction-container east">
+            {renderTrafficLight('east')}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <span className="car-icon" style={{ transform: 'scaleX(-1)' }}>🚗</span>
+              <input type="number" className="vehicle-input" value={queues.east} onChange={(e) => handleQueueChange('east', e.target.value)} />
+            </div>
+          </div>
+
+          {/* West */}
+          <div className="direction-container west">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <span className="car-icon">🚗</span>
+              <input type="number" className="vehicle-input" value={queues.west} onChange={(e) => handleQueueChange('west', e.target.value)} />
+            </div>
+            {renderTrafficLight('west')}
+          </div>
+          
+          {/* Animated Cars */}
+          {cars.map(car => (
+            <div 
+              key={car.id} 
+              className={`animated-car ${car.direction}`}
+              style={{
+                left: `${car.x}px`,
+                top: `${car.y}px`,
+                backgroundColor: car.color
+              }}
+            >
+               {/* Headlights */}
+               <div className="headlight fl"></div>
+               <div className="headlight fr"></div>
+            </div>
+          ))}
+
+        </div>
       </div>
     </div>
   );
